@@ -1,127 +1,197 @@
 # ZMK Firmware Configuration for Dactyl Manuform (Svorak - 52 Keys)
 
-Detta arkiv innehåller ZMK firmware-konfiguration för ett delat **Dactyl Manuform** mekaniskt tangentbord med
-**nice!nano (v2)** mikrokontrollers och **Svorak** (svensk Dvorak) tangentbordsschema.
+> [!NOTE]
+> Detta arkiv innehåller ZMK firmware-konfiguration för ett delat **Dactyl Manuform** mekaniskt tangentbord (52 tangenter) med **nice!nano v2** mikrokontrollers och **Svorak** (svensk Dvorak) tangentbordsschema.
 
 ---
 
-## 📌 Hårdvarulayout (52 Tangenter)
+## 📌 Hårdvarulayout & Struktur
 
-Ditt tangentbord har totalt **52 tangenter** (26 tangenter per halva):
-
-- **Huvudgrid**: 3 rader × 6 kolumner (18 tangenter per halva).
-- **Extra fingertangenter**: 2 tangenter placerade längst ner under lång- och ringfingrarna (kolumn 2 och kolumn 3).
+Tangentsättningen består av **52 tangenter** (26 tangenter per halva):
+- **Huvudgrid**: 3 rader × 6 kolumner = 18 tangenter per halva.
+- **Extra fingertangenter**: 2 tangenter nertill under lång- och ringfingrarna (kolumn 2 och kolumn 3).
 - **Tumkluster**: 6 tumtangenter per halva.
 
 ---
 
-## 🔌 Kopplingsdiagram & Pinout (Wiring Diagram)
+## ⚡ Kopplingsschema & Elektrisk Översikt (Schematics)
 
-Varje halva drivs av en **nice!nano v2** (Pro Micro footprint) och använder en matris med **5 rader** och **6 kolumner**
-(totalt 26 tangenter per halva).
+### 1. Översikt över Elektriska Anslutningar
 
-### Matriskoppling för nice!nano (Pro Micro Pinout)
+```mermaid
+flowchart TD
+    subgraph Power ["🔋 Strömförsörjning (Per halva)"]
+        BAT_POS["LiPo (+) Röd"] -->|Positiv| SWITCH["On/Off Skjutomkopplare"]
+        SWITCH -->|Ström PÅ| B_PLUS["nice!nano B+ Pin"]
+        BAT_NEG["LiPo (-) Svart"] -->|Jord| B_MINUS["nice!nano B- Pin"]
+    end
 
-| Matrisstift | Pro Micro Pin | nice!nano Pin | Beskrivning |
+    subgraph Control ["🔘 Reset & Bootloader"]
+        RST_SW["Momentan Tryckknapp"] --> RST_PIN["nice!nano RST Pin"]
+        RST_SW --> GND_PIN["nice!nano GND Pin"]
+    end
+
+    subgraph Matrix ["⌨️ Tangentmatris (col2row)"]
+        MCU_COL["MCU Kolumn-pin (Col 0..5)"] -->|Ut-signal| SW_KEY["Tangentbrytare"]
+        SW_KEY -->|Kontakt| DIODE["Diod 1N4148 (Anod ▶▮ Katod)"]
+        DIODE -->|In-signal| MCU_ROW["MCU Rad-pin (Row 0..4)"]
+    end
+```
+
+---
+
+### 2. Diod- & Matriskoppling (`col2row`)
+
+```text
+       [ MCU Kolumn-pin ]  (t.ex. Col 0 - Pin 19)
+               │
+               ▼
+       ┌───────────────┐
+       │  Brytare (SW) │
+       └───────┬───────┘
+               │
+               ▼  (Anod)
+        ┌─────────────┐
+        │ Diod 1N4148 │  ▮ Katod (Svart streck på dioden)
+        └──────┬──────┘
+               │
+               ▼
+        [ MCU Rad-pin ]   (t.ex. Row 0 - Pin 4)
+```
+
+> [!IMPORTANT]
+> Dioderna **måste** lödas med katoden (sidan med det svarta strecket) pekad mot **radledningen** (MCU Row pin) för att `col2row`-skanningen skall fungera korrekt.
+
+---
+
+### 3. Pinout-Tabell för nice!nano v2 (Pro Micro Footprint)
+
+```text
+                        ┌───┬───┐
+            (TX0) P0.06 │1  │ 24│ RAW (P0.31 - Col 0)
+            (RX1) P0.08 │2  │ 23│ GND
+                  GND   │3  │ 22│ RST
+                  GND   │4  │ 21│ VCC (3.3V)
+      (Row 0) P0.06 (4) │5  │ 20│ P0.29 (18 - Col 1)
+      (Row 1) P0.08 (5) │6  │ 19│ P0.02 (15 - Col 2)
+      (Row 2) P0.17 (6) │7  │ 18│ P1.15 (14 - Col 3)
+      (Row 3) P0.20 (7) │8  │ 17│ P1.13 (16 - Col 4)
+      (Row 4) P0.22 (8) │9  │ 16│ P0.10 (10 - Col 5)
+            (P0.24) (9) │10 │ 15│ P0.09
+                (16/A3) │11 │ 14│ (15/A1)
+                (10/VCC)│12 │ 13│ (14/A2)
+                        └───┴───┘
+```
+
+| Matrissteg | Pro Micro Pin | nice!nano GPIO Pin | Anslutning |
 | :--- | :--- | :--- | :--- |
-| **Row 0** | Pin 4 | P0.06 | Översta bokstavsraden |
-| **Row 1** | Pin 5 | P0.08 | Hemraden (Home row) |
-| **Row 2** | Pin 6 | P0.17 | Nedersta bokstavsraden |
-| **Row 3** | Pin 7 | P0.20 | Extra tangenter nertill (lång- & ringfinger) |
-| **Row 4** | Pin 8 | P0.22 | Tumkluster (6 tumtangenter) |
-| **Col 0** | Pin 19 (RAW) | P0.31 | Kolumn 0 (längst till vänster) |
-| **Col 1** | Pin 18 (A0) | P0.29 | Kolumn 1 |
-| **Col 2** | Pin 15 (A1) | P0.02 | Kolumn 2 (Ringfinger) |
-| **Col 3** | Pin 14 (A2) | P1.15 | Kolumn 3 (Långfinger) |
-| **Col 4** | Pin 16 (A3) | P1.13 | Kolumn 4 |
-| **Col 5** | Pin 10 | P0.10 | Kolumn 5 (längst till höger) |
-
-### Övriga komponenter per halva
-
-1. **Dioder**: 1N4148 koppling `col2row`. Diodens katod (sidan med det svarta strecket) löds mot radledningen, och
-   anoden mot tangentbrytaren/kolumnen.
-2. **Batteri (LiPo 3.7V)**:
-   - Röd ledning (Positiv `+`) -> ansluts till `B+` på nice!nano (via en **On/Off-skjutomkopplare**).
-   - Svart ledning (Negativ `-`) -> ansluts till `B-` på nice!nano.
-3. **Reset-knapp**: En momentan tryckknapp kopplad mellan `RST` och `GND` på nice!nano.
+| **Row 0** | Pin 4 | `P0.06` | Översta bokstavsraden |
+| **Row 1** | Pin 5 | `P0.08` | Hemraden (Home row) |
+| **Row 2** | Pin 6 | `P0.17` | Nedersta bokstavsraden |
+| **Row 3** | Pin 7 | `P0.20` | Extra tangenter nertill (lång- & ringfinger) |
+| **Row 4** | Pin 8 | `P0.22` | Tumkluster (6 tumtangenter) |
+| **Col 0** | Pin 19 (RAW) | `P0.31` | Kolumn 0 (längst till vänster) |
+| **Col 1** | Pin 18 (A0) | `P0.29` | Kolumn 1 |
+| **Col 2** | Pin 15 (A1) | `P0.02` | Kolumn 2 (Ringfinger) |
+| **Col 3** | Pin 14 (A2) | `P1.15` | Kolumn 3 (Långfinger) |
+| **Col 4** | Pin 16 (A3) | `P1.13` | Kolumn 4 |
+| **Col 5** | Pin 10 | `P0.10` | Kolumn 5 (längst till höger) |
 
 ---
 
 ## 🚀 Installation av Firmware på nice!nano
 
-### Steg 1: Bygg `.uf2`-filerna
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Användare
+    participant PC as Dator (USB)
+    participant MCU as nice!nano (Bootloader)
 
-Vid varje push till `main`-branchen i detta GitHub-arkiv bygger GitHub Actions automatiskt firmware-filerna.
+    User->>PC: Push källkod till GitHub (main)
+    PC-->>User: GitHub Actions bygger zmk_..._nice_nano_v2.uf2
+    User->>MCU: Anslut USB-kabel & Dubbelklicka Reset-knapp
+    MCU-->>PC: Montera som enhet "NICENANO"
+    User->>MCU: Dra & Släpp .uf2-fil till NICENANO
+    MCU-->>MCU: Flasha firmware & Starta om automatisk
+```
 
-1. Gå till fliken **Actions** i ditt GitHub-repository.
-2. Klicka på den senaste lyckade körningen.
-3. Ladda ner artifact-arkivet som innehåller:
-   - `zmk_x6_manuform_left_nice_nano_v2.uf2` (för vänster / central halva)
-   - `zmk_x6_manuform_right_nice_nano_v2.uf2` (för höger / peripheral halva)
-
-### Steg 2: Flasha Vänster Halva (Central)
-
-1. Anslut den **vänstra** nice!nano till datorn med en USB-C-datakabel.
-2. Dubbelklicka snabbt på reset-knappen på din nice!nano.
-3. En ny enhet/disk med namnet **`NICENANO`** dyker upp i din filhanterare.
-4. Dra och släpp (eller kopiera) `zmk_x6_manuform_left_nice_nano_v2.uf2` till `NICENANO`-disken.
-5. Kortet kopplar automatiskt ifrån och startar om med det nya firmwaret.
-
-### Steg 3: Flasha Höger Halva (Peripheral)
-
-1. Anslut den **högra** nice!nano till datorn med USB-C-kabeln.
-2. Dubbelklicka snabbt på reset-knappen på nice!nano tills **`NICENANO`**-disken dyker upp.
-3. Dra och släpp `zmk_x6_manuform_right_nice_nano_v2.uf2` till `NICENANO`-disken.
-4. Kortet startar om. Slå på batteriströmbrytaren på båda halvorna.
+### Steg-för-steg Flashing
+1. **Ladda ner firmware**: Hämta `zmk_x6_manuform_left_nice_nano_v2.uf2` och `zmk_x6_manuform_right_nice_nano_v2.uf2` från **Actions** i ditt GitHub-repository.
+2. **Vänster halva (Central)**:
+   - Koppla in vänster nice!nano via USB-C.
+   - Dubbelklicka på reset-knappen tills disken **`NICENANO`** visas.
+   - Kopiera över `zmk_x6_manuform_left_nice_nano_v2.uf2`.
+3. **Höger halva (Peripheral)**:
+   - Koppla in höger nice!nano via USB-C.
+   - Dubbelklicka på reset-knappen tills disken **`NICENANO`** visas.
+   - Kopiera över `zmk_x6_manuform_right_nice_nano_v2.uf2`.
 
 ---
 
 ## 💻 USB vs Bluetooth-anslutning
 
-- **Datoranslutning**: Den vänstra halvan är inställd som **Central**. När du sätter i USB-kabeln i den vänstra halvan
-  prioriterar ZMK automatiskt **USB-utskrift** till datorn.
-- **Trådlös split**: Höger halva skickar alla sina knapptryckningar trådlöst via BLE till den vänstra halvan, som sedan
-  skickar vidare allt till datorn via USB.
-
-### Växla utskriftsläge manuellt
-
-Du kan tvinga utskrift till USB eller Bluetooth direkt via tangentbordet på **Lager 2 (Sifferlagret)**:
-
-- `&out OUT_USB`: Tvingar tangentbordet att skicka utskrift via **USB**.
-- `&out OUT_BLE`: Växlar utskrift till **Bluetooth**.
-- `&out OUT_TOG`: Växlar mellan USB och BLE.
-- `&bt BT_CLR`: Rensar Bluetooth-parning vid felsökning.
+- **Vänster halva (Central)** skickar automatiskt alla knapptryckningar över **USB** när USB-kabeln är ansluten till datorn.
+- **Höger halva (Peripheral)** kommunicerar trådlöst med vänster halva via **BLE Split**.
 
 ---
 
-## ⌨️ Keymap Översikt (52 Tangenter)
+## ⌨️ Keymap Layout (52 Tangenter)
 
 ### Lager 0: Bokstäver (Svorak Layout)
 
 ```text
-[TAB]    [Å]   [Ä]   [Ö]   [P]   [Y]           [F]   [G]   [C]   [R]   [L]   [BSPC]
-[LCTRL]  [A]   [O]   [E]   [U]   [I]           [D]   [H]   [T]   [N]   [S]   [-]
-[LSHFT]  [,]   [.]   [J]   [K]   [X]           [B]   [M]   [W]   [V]   [Z]   [RSHFT]
-               [LEFT][DOWN]                                [UP]  [RIGHT]
-[BSPC]   [DEL] [ESC] [MO1] [MO2] [ALT]         [MO2] [MO1] [RCTRL] [SPACE] [RET] [TAB]
+LEFT HALF                                                               RIGHT HALF
+┌───────┬───────┬───────┬───────┬───────┬───────┐       ┌───────┬───────┬───────┬───────┬───────┬───────┐
+│  TAB  │   Å   │   Ä   │   Ö   │   P   │   Y   │       │   F   │   G   │   C   │   R   │   L   │ BSPC  │
+├───────┼───────┼───────┼───────┼───────┼───────┤       ├───────┼───────┼───────┼───────┼───────┼───────┤
+│ LCTRL │   A   │   O   │   E   │   U   │   I   │       │   D   │   H   │   T   │   N   │   S   │   -   │
+├───────┼───────┼───────┼───────┼───────┼───────┤       ├───────┼───────┼───────┼───────┼───────┼───────┤
+│ LSHFT │   ,   │   .   │   J   │   K   │   X   │       │   B   │   M   │   W   │   V   │   Z   │ RSHFT │
+└───────┴───────┼───────┼───────┼───────┴───────┘       └───────┴───────┼───────┼───────┼───────┴───────┘
+                │ LEFT  │ DOWN  │                                       │  UP   │ RIGHT │
+                └───┬───┴───┬───┘                                       └───┬───┴───┬───┘
+┌───────┬───────┬───┴───┬───┴───┬───────┬───────┐       ┌───────┬───────┬───┴───┬───┴───┬───────┬───────┐
+│ BSPC  │  DEL  │  ESC  │ SYMB  │ NUMS  │ LALT  │       │ NUMS  │ SYMB  │ RCTRL │ SPACE │  RET  │  TAB  │
+└───────┴───────┴───────┴───────┴───────┴───────┘       └───────┴───────┴───────┴───────┴───────┴───────┘
 ```
+
+---
 
 ### Lager 1: Symboler (`&mo 1`)
 
 ```text
-[`]      [!]   [@]   [#]   [$]   [%]           [^]   [&]   [*]   [(]   [)]   [DEL]
-[TRANS]  [{]   [}]   [(]   [)]   [&]           [-]   [=]   [:]   [;]   [']   ["]
-[TRANS]  [[]   []]   [<]   [>]   [|]           [\]   [+]   [,]   [.]   [/]   [TRANS]
-               [HOME][END]                                 [PGUP][PGDN]
-[TRANS]  [TRANS] [TRANS] [TRANS] [TRANS] [TRANS]   [TRANS] [TRANS] [TRANS] [SPACE] [RET] [TRANS]
+LEFT HALF                                                               RIGHT HALF
+┌───────┬───────┬───────┬───────┬───────┬───────┐       ┌───────┬───────┬───────┬───────┬───────┬───────┐
+│   `   │   !   │   @   │   #   │   $   │   %   │       │   ^   │   &   │   *   │   (   │   )   │  DEL  │
+├───────┼───────┼───────┼───────┼───────┼───────┤       ├───────┼───────┼───────┼───────┼───────┼───────┤
+│       │   {   │   }   │   (   │   )   │   &   │       │   -   │   =   │   :   │   ;   │   '   │   "   │
+├───────┼───────┼───────┼───────┼───────┼───────┤       ├───────┼───────┼───────┼───────┼───────┼───────┤
+│       │   [   │   ]   │   <   │   >   │   |   │       │   \   │   +   │   ,   │   .   │   /   │       │
+└───────┴───────┼───────┼───────┼───────┴───────┘       └───────┴───────┼───────┼───────┼───────┴───────┘
+                │ HOME  │  END  │                                       │ PG_UP │ PG_DN │
+                └───┬───┴───┬───┘                                       └───┬───┴───┬───┘
+┌───────┬───────┬───┴───┬───┴───┬───────┬───────┐       ┌───────┬───────┬───┴───┬───┴───┬───────┬───────┐
+│       │       │       │       │       │       │       │       │       │       │ SPACE │  RET  │       │
+└───────┴───────┴───────┴───────┴───────┴───────┘       └───────┴───────┴───────┴───────┴───────┴───────┘
 ```
+
+---
 
 ### Lager 2: Siffror, Navigation & System (`&mo 2`)
 
 ```text
-[ESC]    [F1]   [F2]   [F3]   [F4]   [F5]          [7]   [8]   [9]   [+]   [-]   [BSPC]
-[TRANS]  [F6]   [F7]   [F8]   [F9]   [F10]         [4]   [5]   [6]   [*]   [/]   [RET]
-[OUT_USB][OUT_BLE][OUT_TOG][BTCLR][BT0] [BT1]      [1]   [2]   [3]   [=]   [.]   [TRANS]
-               [LEFT][DOWN]                                [UP]  [RIGHT]
-[TRANS]  [TRANS] [TRANS] [TRANS] [TRANS] [TRANS]   [TRANS] [TRANS] [TRANS] [0]   [.]   [TRANS]
+LEFT HALF                                                               RIGHT HALF
+┌───────┬───────┬───────┬───────┬───────┬───────┐       ┌───────┬───────┬───────┬───────┬───────┬───────┐
+│  ESC  │  F1   │  F2   │  F3   │  F4   │  F5   │       │   7   │   8   │   9   │   +   │   -   │ BSPC  │
+├───────┼───────┼───────┼───────┼───────┼───────┤       ├───────┼───────┼───────┼───────┼───────┼───────┤
+│       │  F6   │  F7   │  F8   │  F9   │  F10  │       │   4   │   5   │   6   │   *   │   /   │  RET  │
+├───────┼───────┼───────┼───────┼───────┼───────┤       ├───────┼───────┼───────┼───────┼───────┼───────┤
+│  USB  │  BLE  │  TOG  │ BTCLR │ BTSEL0│ BTSEL1│       │   1   │   2   │   3   │   =   │   .   │       │
+└───────┴───────┼───────┼───────┼───────┴───────┘       └───────┴───────┼───────┼───────┼───────┴───────┘
+                │ LEFT  │ DOWN  │                                       │  UP   │ RIGHT │
+                └───┬───┴───┬───┘                                       └───┬───┴───┬───┘
+┌───────┬───────┬───┴───┬───┴───┬───────┬───────┐       ┌───────┬───────┬───┴───┬───┴───┬───────┬───────┐
+│       │       │       │       │       │       │       │       │       │       │   0   │   .   │       │
+└───────┴───────┴───────┴───────┴───────┴───────┘       └───────┴───────┴───────┴───────┴───────┴───────┘
 ```
